@@ -1,7 +1,4 @@
 # app.R - Enhanced Shiny App to Extract Submission and Acceptance Dates from PubMed Central
-##SUPERCODIGO 2.6 Interfaz remodelada sin COLUMNA order
-#Función corregida PMCID;
-# app.R - Enhanced Shiny App to Extract Submission and Acceptance Dates from PubMed Central
 
 # Load required libraries
 library(shiny)
@@ -1055,3 +1052,4 @@ server <- function(input, output, session) {
 
 # Run the app
 shinyApp(ui = ui, server = server)
+
