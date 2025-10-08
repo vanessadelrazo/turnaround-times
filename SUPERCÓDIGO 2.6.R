@@ -1,0 +1,1057 @@
+# app.R - Enhanced Shiny App to Extract Submission and Acceptance Dates from PubMed Central
+##SUPERCODIGO 2.6 Interfaz remodelada sin COLUMNA order
+#Función corregida PMCID;
+# app.R - Enhanced Shiny App to Extract Submission and Acceptance Dates from PubMed Central
+
+# Load required libraries
+library(shiny)
+library(rentrez)
+library(xml2)
+library(dplyr)
+library(DT)
+library(ggplot2)
+library(lubridate)
+
+# UI definition
+ui <- fluidPage(
+  # Enhanced CSS for modern aesthetic design
+  tags$head(
+    tags$style(HTML("
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+      
+      * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      
+      body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+      
+      .container-fluid {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        margin: 20px;
+        padding: 0;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+      
+      /* Enhanced Header */
+      .main-header {
+        background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+        color: white;
+        padding: 40px 30px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .main-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: float 6s ease-in-out infinite;
+      }
+      
+      @keyframes float {
+        0%, 100% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-20px) rotate(180deg); }
+      }
+      
+      .main-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin: 0;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        position: relative;
+        z-index: 2;
+      }
+      
+      .main-subtitle {
+        font-size: 1.1rem;
+        font-weight: 300;
+        margin-top: 10px;
+        opacity: 0.9;
+        position: relative;
+        z-index: 2;
+      }
+      
+      /* Enhanced Sidebar */
+      .col-sm-4 {
+        background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+        padding: 30px;
+        border-right: 1px solid #dee2e6;
+      }
+      
+      .sidebar-section {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        border: 1px solid #e1e5e9;
+      }
+      
+      .sidebar-section h4 {
+        color: #2c3e50;
+        font-weight: 600;
+        margin-bottom: 15px;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      /* Enhanced Form Controls */
+      .form-group label {
+        font-weight: 500;
+        color: #2c3e50;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+      }
+      
+      .form-control {
+        border: 2px solid #e1e5e9;
+        border-radius: 10px;
+        padding: 12px 15px;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+        background: #fafbfc;
+      }
+      
+      .form-control:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        background: white;
+      }
+      
+      textarea.form-control {
+        resize: vertical;
+        min-height: 120px;
+        font-family: 'Monaco', 'Consolas', monospace;
+        line-height: 1.6;
+      }
+      
+      /* Enhanced Radio Buttons */
+      .radio-group {
+        display: flex;
+        gap: 15px;
+        margin: 15px 0;
+      }
+      
+      .radio-option {
+        position: relative;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        padding: 10px 15px;
+        border: 2px solid #e1e5e9;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+        background: #fafbfc;
+      }
+      
+      .radio-option:hover {
+        border-color: #3498db;
+        background: rgba(52, 152, 219, 0.05);
+      }
+      
+      .radio-option input[type='radio']:checked + label {
+        color: #3498db;
+        font-weight: 500;
+      }
+      
+      /* Enhanced Buttons */
+      .btn-container {
+        display: flex;
+        gap: 12px;
+        margin: 20px 0;
+        flex-wrap: wrap;
+      }
+      
+      .custom-button {
+        background: linear-gradient(135deg, #3498db, #2980b9);
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 12px;
+        font-weight: 500;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+      }
+      
+      .custom-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        background: linear-gradient(135deg, #2980b9, #21618c);
+        color: white;
+      }
+      
+      .clear-button {
+        background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+        color: white;
+        box-shadow: 0 4px 15px rgba(149, 165, 166, 0.3);
+      }
+      
+      .clear-button:hover {
+        background: linear-gradient(135deg, #7f8c8d, #6c7b7d);
+        box-shadow: 0 6px 20px rgba(149, 165, 166, 0.4);
+      }
+      
+      .download-button {
+        background: linear-gradient(135deg, #f39c12, #e67e22);
+        color: white;
+        box-shadow: 0 4px 15px rgba(243, 156, 18, 0.3);
+      }
+      
+      .download-button:hover {
+        background: linear-gradient(135deg, #e67e22, #d35400);
+        box-shadow: 0 6px 20px rgba(243, 156, 18, 0.4);
+        color: white;
+      }
+      
+      /* Enhanced Main Panel */
+      .col-sm-8 {
+        padding: 30px;
+        background: white;
+      }
+      
+      /* Enhanced Tabs */
+      .nav-tabs {
+        border-bottom: 2px solid #e1e5e9;
+        margin-bottom: 25px;
+      }
+      
+      .nav-tabs .nav-link {
+        border: none;
+        padding: 12px 24px;
+        color: #6c757d;
+        font-weight: 500;
+        border-radius: 10px 10px 0 0;
+        margin-right: 5px;
+        transition: all 0.3s ease;
+      }
+      
+      .nav-tabs .nav-link:hover {
+        background: rgba(52, 152, 219, 0.1);
+        color: #3498db;
+      }
+      
+      .nav-tabs .nav-link.active {
+        background: linear-gradient(135deg, #3498db, #2980b9);
+        color: white;
+        border-bottom: 2px solid #3498db;
+      }
+      
+      /* Enhanced DataTable */
+      .dataTables_wrapper {
+        background: white;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        border: 1px solid #e1e5e9;
+      }
+      
+      .dataTables_wrapper .dataTables_length,
+      .dataTables_wrapper .dataTables_filter {
+        padding: 20px;
+        background: #f8f9fa;
+      }
+      
+      .dataTables_wrapper .dataTables_filter input {
+        border: 2px solid #e1e5e9;
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin-left: 10px;
+      }
+      
+      table.dataTable {
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+      
+      table.dataTable thead th {
+        background: linear-gradient(135deg, #2c3e50, #34495e);
+        color: white;
+        font-weight: 600;
+        padding: 15px 12px;
+        border: none;
+        text-align: center;
+      }
+      
+      table.dataTable tbody td {
+        padding: 12px;
+        border-bottom: 1px solid #e1e5e9;
+        vertical-align: middle;
+      }
+      
+      table.dataTable tbody tr:hover {
+        background: rgba(52, 152, 219, 0.05);
+      }
+      
+      .dataTables_wrapper .dataTables_paginate {
+        padding: 20px;
+        background: #f8f9fa;
+      }
+      
+      /* Enhanced Loading Overlay */
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(44, 62, 80, 0.95);
+        backdrop-filter: blur(5px);
+        z-index: 9999;
+        display: none;
+      }
+      
+      .loading-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        background: white;
+        padding: 50px;
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        min-width: 400px;
+      }
+      
+      .spinner {
+        border: 4px solid #e1e5e9;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 25px auto;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .progress-container {
+        width: 100%;
+        background-color: #e1e5e9;
+        border-radius: 25px;
+        margin: 25px 0;
+        height: 30px;
+        overflow: hidden;
+      }
+      
+      .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #3498db, #2980b9);
+        border-radius: 25px;
+        transition: width 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 14px;
+      }
+      
+      .loading-text {
+        font-size: 1.2rem;
+        color: #2c3e50;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+      
+      .loading-detail {
+        font-size: 0.95rem;
+        color: #6c757d;
+        margin-top: 15px;
+      }
+      
+      /* Enhanced Status Messages */
+      .status-card {
+        background: linear-gradient(135deg, #e8f5e8, #d4edda);
+        border: 1px solid #c3e6cb;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 20px 0;
+        color: #155724;
+        font-weight: 500;
+      }
+      
+      /* Enhanced Help Text */
+      .help-block {
+        background: rgba(52, 152, 219, 0.1);
+        border-left: 4px solid #3498db;
+        padding: 15px;
+        border-radius: 0 8px 8px 0;
+        margin: 15px 0;
+        font-size: 0.9rem;
+        color: #2c3e50;
+      }
+      
+      /* Enhanced Plots */
+      .plot-container {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin: 20px 0;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        border: 1px solid #e1e5e9;
+      }
+      
+      /* Responsive Design */
+      @media (max-width: 768px) {
+        .main-title {
+          font-size: 2rem;
+        }
+        
+        .btn-container {
+          flex-direction: column;
+        }
+        
+        .custom-button {
+          justify-content: center;
+        }
+        
+        .radio-group {
+          flex-direction: column;
+        }
+      }
+    ")),
+    
+    # JavaScript for progress handling
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('show_loading', function(message) {
+        document.getElementById('loading-overlay').style.display = 'block';
+      });
+      
+      Shiny.addCustomMessageHandler('hide_loading', function(message) {
+        document.getElementById('loading-overlay').style.display = 'none';
+      });
+      
+      Shiny.addCustomMessageHandler('update_progress', function(message) {
+        var progressBar = document.getElementById('progress-bar');
+        var loadingText = document.getElementById('loading-text');
+        var loadingDetail = document.getElementById('loading-detail');
+        
+        if (progressBar) {
+          progressBar.style.width = message.percentage + '%';
+          progressBar.textContent = message.percentage + '%';
+        }
+        if (loadingText && message.text) {
+          loadingText.textContent = message.text;
+        }
+        if (loadingDetail && message.detail) {
+          loadingDetail.textContent = message.detail;
+        }
+      });
+    "))
+  ),
+  
+  # Loading overlay
+  div(id = "loading-overlay", class = "loading-overlay",
+      div(class = "loading-content",
+          div(class = "spinner"),
+          div(id = "loading-text", class = "loading-text", "Processing articles..."),
+          div(class = "progress-container",
+              div(id = "progress-bar", class = "progress-bar", style = "width: 0%;", "0%")
+          ),
+          div(id = "loading-detail", class = "loading-detail", "Starting...")
+      )
+  ),
+  
+  # Enhanced Header
+  div(class = "main-header",
+      h1(class = "main-title", 
+         icon("dna"), " PubMed Central Analytics"),
+      p(class = "main-subtitle", 
+        "Extract and analyze submission & acceptance dates from scientific publications")
+  ),
+  
+  sidebarLayout(
+    sidebarPanel(
+      div(class = "sidebar-section",
+          h4(icon("upload"), "Input Data"),
+          textAreaInput("pmid_list", 
+                        "Enter PMIDs or PMCIDs:",
+                        placeholder = "Enter PubMed IDs (PMIDs) or PMC IDs\ne.g., 12345678\nPMC7654321\n\nOne ID per line",
+                        height = "140px"),
+          
+          div(class = "radio-group",
+              div(class = "radio-option",
+                  radioButtons("id_type", "ID Type:",
+                               choices = c("PMID" = "pmid", 
+                                           "PMCID" = "pmcid"),
+                               selected = "pmid",
+                               inline = TRUE))
+          )
+      ),
+      
+      div(class = "sidebar-section",
+          h4(icon("cogs"), "Actions"),
+          div(class = "btn-container",
+              actionButton("extract_button", 
+                           HTML("<i class='fa fa-calendar'></i> Extract Dates"), 
+                           class = "custom-button"),
+              
+              actionButton("clear_button", 
+                           HTML("<i class='fa fa-eraser'></i> Clear"), 
+                           class = "custom-button clear-button")
+          ),
+          
+          downloadButton("download_data", 
+                         HTML("<i class='fa fa-download'></i> Download Results"), 
+                         class = "custom-button download-button")
+      ),
+      
+      div(class = "sidebar-section",
+          h4(icon("info-circle"), "Information"),
+          div(class = "help-block",
+              p(strong("Note:"), "This app extracts received (submission) and accepted dates from PubMed Central articles."),
+              p("• Not all articles contain these dates"),
+              p("• PMC articles must be open access for full text extraction"),
+              p("• Processing may take a few moments per article")
+          )
+      )
+    ),
+    
+    mainPanel(
+      tabsetPanel(
+        id = "main_tabs",
+        tabPanel("📊 Results", 
+                 br(),
+                 DTOutput("results_table"),
+                 br(),
+                 div(class = "status-card",
+                     textOutput("status_message"))),
+        
+        tabPanel("📈 Statistics",
+                 br(),
+                 div(class = "plot-container",
+                     plotOutput("review_time_hist")),
+                 
+                 div(class = "plot-container",
+                     plotOutput("time_trend")),
+                 
+                 div(class = "plot-container",
+                     verbatimTextOutput("stats_summary")))
+      )
+    )
+  )
+)
+
+# Server logic (keeping the same functionality)
+server <- function(input, output, session) {
+  
+  # Reactive values to store results
+  results <- reactiveVal(data.frame(
+    PMID = character(),
+    PMCID = character(),
+    Title = character(),
+    Journal = character(),
+    Year = integer(),
+    Date_Received = as.Date(character()),
+    Date_Accepted = as.Date(character()),
+    Review_Days = integer(),
+    stringsAsFactors = FALSE
+  ))
+  
+  # Observador para el botón Clear
+  observeEvent(input$clear_button, {
+    # Limpiar el área de texto
+    updateTextAreaInput(session, "pmid_list", value = "")
+    
+    # Limpiar los datos de las tablas reseteando el reactiveVal
+    results(data.frame(
+      PMID = character(),
+      PMCID = character(),
+      Title = character(),
+      Journal = character(),
+      Year = integer(),
+      Date_Received = as.Date(character()),
+      Date_Accepted = as.Date(character()),
+      Review_Days = integer(),
+      stringsAsFactors = FALSE
+    ))
+    
+    # Mostrar notificación
+    showNotification("Input and tables cleared", type = "message", duration = 2)
+  })
+  
+  # Function to show loading overlay
+  showLoading <- function() {
+    session$sendCustomMessage("show_loading", list())
+  }
+  
+  # Function to hide loading overlay
+  hideLoading <- function() {
+    session$sendCustomMessage("hide_loading", list())
+  }
+  
+  # Function to update progress
+  updateProgress <- function(value, text = "", detail = "") {
+    percentage <- round(value * 100)
+    session$sendCustomMessage("update_progress", list(
+      percentage = percentage,
+      text = text,
+      detail = detail
+    ))
+  }
+  
+  # Safe XML text extraction helper function
+  safe_xml_text <- function(node) {
+    if (inherits(node, "xml_missing") || length(node) == 0) {
+      return(NA_character_)
+    } else {
+      return(xml2::xml_text(node))
+    }
+  }
+  
+  # Function to extract dates from PMC article
+  extract_dates <- function(pmc_id) {
+    tryCatch({
+      # Ensure PMC ID format
+      clean_pmc_id <- gsub("^PMC", "", pmc_id, ignore.case = TRUE)
+      
+      # Get the PMC article as XML
+      pmc_article <- rentrez::entrez_fetch(db = "pmc", id = clean_pmc_id, rettype = "xml")
+      xml_doc <- xml2::read_xml(pmc_article)
+      
+      # Extract article metadata
+      pmid_node <- xml2::xml_find_first(xml_doc, "//article-id[@pub-id-type='pmid']")
+      pmid <- safe_xml_text(pmid_node)
+      
+      title_node <- xml2::xml_find_first(xml_doc, "//article-title")
+      title <- safe_xml_text(title_node)
+      if (is.na(title)) {
+        title_node <- xml2::xml_find_first(xml_doc, "//title-group/article-title")
+        title <- safe_xml_text(title_node)
+      }
+      
+      journal_node <- xml2::xml_find_first(xml_doc, "//journal-title")
+      journal <- safe_xml_text(journal_node)
+      if (is.na(journal)) {
+        journal_node <- xml2::xml_find_first(xml_doc, "//journal-title-group/journal-title")
+        journal <- safe_xml_text(journal_node)
+      }
+      
+      year_node <- xml2::xml_find_first(xml_doc, "//pub-date[@pub-type='epub']//year | //pub-date[@pub-type='ppub']//year | //pub-date//year")
+      pub_year <- if (!inherits(year_node, "xml_missing") && length(year_node) > 0) {
+        as.integer(safe_xml_text(year_node))
+      } else {
+        NA_integer_
+      }
+      
+      # Initialize dates
+      received_date <- as.Date(NA)
+      accepted_date <- as.Date(NA)
+      
+      # Extract dates from history
+      date_nodes <- xml2::xml_find_all(xml_doc, "//history/date")
+      
+      for (node in date_nodes) {
+        date_type <- xml2::xml_attr(node, "date-type")
+        
+        # Extract date components
+        year_node <- xml2::xml_find_first(node, ".//year")
+        month_node <- xml2::xml_find_first(node, ".//month")
+        day_node <- xml2::xml_find_first(node, ".//day")
+        
+        year_val <- safe_xml_text(year_node)
+        month_val <- safe_xml_text(month_node)
+        day_val <- safe_xml_text(day_node)
+        
+        # Skip if any component missing
+        if (any(is.na(c(year_val, month_val, day_val))) || any(c(year_val, month_val, day_val) == "")) {
+          next
+        }
+        
+        # Convert to integers
+        tryCatch({
+          year_int <- as.integer(year_val)
+          month_int <- as.integer(month_val)
+          day_int <- as.integer(day_val)
+          
+          # Validate date components
+          if (is.na(year_int) || is.na(month_int) || is.na(day_int) ||
+              year_int < 1900 || year_int > 2030 ||
+              month_int < 1 || month_int > 12 ||
+              day_int < 1 || day_int > 31) {
+            next
+          }
+          
+          # Create date
+          parsed_date <- as.Date(paste(year_int, month_int, day_int, sep = "-"))
+          
+          # Assign based on date type
+          if (!is.null(date_type)) {
+            if (date_type == "received") {
+              received_date <- parsed_date
+            } else if (date_type == "accepted") {
+              accepted_date <- parsed_date
+            }
+          }
+        }, error = function(e) {
+          # Skip this date if parsing fails
+          next
+        })
+      }
+      
+      # Validate date logic
+      if (!is.na(received_date) && !is.na(accepted_date)) {
+        if (accepted_date < received_date) {
+          showNotification(
+            paste0("Warning: Invalid dates for PMC", clean_pmc_id, " - Acceptance before submission"),
+            type = "warning"
+          )
+          # Keep the dates but mark as suspicious
+        }
+      }
+      
+      # Calculate review time
+      review_days <- NA_integer_
+      if (!is.na(received_date) && !is.na(accepted_date)) {
+        review_days <- as.integer(difftime(accepted_date, received_date, units = "days"))
+        
+        # Sanity check for unrealistic review times
+        if (!is.na(review_days) && (review_days < 0 || review_days > 3650)) {
+          showNotification(
+            paste0("Warning: Unusual review time for PMC", clean_pmc_id, ": ", review_days, " days"),
+            type = "warning"
+          )
+        }
+      }
+      
+      return(data.frame(
+        PMID = if(is.na(pmid) || pmid == "") NA_character_ else pmid,
+        PMCID = paste0("PMC", clean_pmc_id),
+        Title = if(is.na(title) || title == "") paste("Article PMC", clean_pmc_id) else title,
+        Journal = journal,
+        Year = pub_year,
+        Date_Received = received_date,
+        Date_Accepted = accepted_date,
+        Review_Days = review_days,
+        stringsAsFactors = FALSE
+      ))
+      
+    }, error = function(e) {
+      showNotification(
+        paste0("Error processing PMC", pmc_id, ": ", e$message),
+        type = "error"
+      )
+      return(data.frame(
+        PMID = NA_character_,
+        PMCID = paste0("PMC", gsub("^PMC", "", pmc_id, ignore.case = TRUE)),
+        Title = paste("Error fetching PMCID:", pmc_id),
+        Journal = NA_character_,
+        Year = NA_integer_,
+        Date_Received = as.Date(NA),
+        Date_Accepted = as.Date(NA),
+        Review_Days = NA_integer_,
+        stringsAsFactors = FALSE
+      ))
+    })
+  }
+  # Convert PMID to PMCID
+  convert_pmid_to_pmcid <- function(pmid) {
+    tryCatch({
+      summary_result <- rentrez::entrez_summary(db = "pubmed", id = pmid)
+      
+      if ("articleids" %in% names(summary_result) && !is.null(summary_result$articleids)) {
+        pmcid_entry <- summary_result$articleids[summary_result$articleids$idtype == "pmcid", ]
+        
+        if (nrow(pmcid_entry) > 0) {
+          # Obtener el valor del PMCID y limpiarlo
+          pmcid_raw <- pmcid_entry$value[1]
+          
+          # Limpiar el formato: remover "PMC-id: " y ";" y extraer solo los números
+          pmcid_clean <- gsub("PMC-id:\\s*PMC|PMC|;", "", pmcid_raw, ignore.case = TRUE)
+          pmcid_clean <- trimws(pmcid_clean)  # Remover espacios en blanco
+          
+          # Verificar que solo contenga números
+          if (grepl("^[0-9]+$", pmcid_clean)) {
+            return(pmcid_clean)
+          } else {
+            # Si no es solo números, intentar extraer números usando regex
+            numbers_only <- gsub("[^0-9]", "", pmcid_raw)
+            if (nchar(numbers_only) > 0) {
+              return(numbers_only)
+            }
+          }
+        }
+      }
+      return(NA_character_)
+    }, error = function(e) {
+      showNotification(paste("Error converting PMID", pmid, ":", e$message), type = "warning")
+      return(NA_character_)
+    })
+  }
+  
+  # Process IDs when Extract button is clicked
+  observeEvent(input$extract_button, {
+    req(input$pmid_list)
+    
+    # Parse input IDs
+    ids <- unlist(strsplit(input$pmid_list, "[\r\n]+"))
+    ids <- trimws(ids)
+    ids <- ids[nzchar(ids)]
+    
+    if (length(ids) == 0) {
+      showNotification("Please enter at least one valid ID", type = "error")
+      return()
+    }
+    
+    # Show loading overlay
+    showLoading()
+    updateProgress(0, "Processing articles...", "Starting...")
+    
+    # Initialize results dataframe
+    result_df <- data.frame(
+      PMID = character(),
+      PMCID = character(),
+      Title = character(),
+      Journal = character(),
+      Year = integer(),
+      Date_Received = as.Date(character()),
+      Date_Accepted = as.Date(character()),
+      Review_Days = integer(),
+      stringsAsFactors = FALSE
+    )
+    
+    # Process each ID
+    for (i in seq_along(ids)) {
+      current_id <- ids[i]
+      progress_value <- (i - 1) / length(ids)
+      updateProgress(progress_value, "Processing articles...", paste("Processing", current_id, "(", i, "of", length(ids), ")"))
+      
+      # Get PMCID based on input type
+      pmcid <- if (input$id_type == "pmid") {
+        convert_pmid_to_pmcid(current_id)
+      } else {
+        gsub("^PMC", "", current_id, ignore.case = TRUE)
+      }
+      # Skip if we couldn't get a valid PMCID
+      if (is.na(pmcid) || pmcid == "") {
+        result_row <- data.frame(
+          PMID = if(input$id_type == "pmid") current_id else NA_character_,
+          PMCID = if(input$id_type == "pmcid") current_id else NA_character_,
+          Title = "ID not found or no PMCID available",
+          Journal = NA_character_,
+          Year = NA_integer_,
+          Date_Received = as.Date(NA),
+          Date_Accepted = as.Date(NA),
+          Review_Days = NA_integer_,
+          stringsAsFactors = FALSE
+        )
+        result_df <- rbind(result_df, result_row)
+        next
+      }
+      
+      # Extract dates from PMC article
+      date_info <- extract_dates(pmcid)
+      
+      # Add original PMID if we're using PMIDs and it's missing from the fetched data
+      if (input$id_type == "pmid" && (is.na(date_info$PMID) || date_info$PMID == "")) {
+        date_info$PMID <- current_id
+      }
+      
+      # Add to results
+      result_df <- rbind(result_df, date_info)
+      
+      # Small delay to prevent overwhelming the API
+      Sys.sleep(0.1)
+    }
+    
+    # Final progress update
+    updateProgress(1, "Completed!", paste("Processed", length(ids), "articles"))
+    
+    # Store results
+    results(result_df)
+    
+    # Hide loading after a brief delay
+    Sys.sleep(1)
+    hideLoading()
+    
+    # Show notification
+    showNotification(paste("Processed", nrow(result_df), "articles"), type = "message")
+  })
+  
+  # Display results table
+  output$results_table <- renderDT({
+    df <- results()
+    if(nrow(df) == 0) {
+      return(NULL)
+    }
+    datatable(df, 
+              options = list(pageLength = 10, 
+                             autoWidth = TRUE,
+                             scrollX = TRUE),
+              rownames = FALSE) %>%
+      formatDate(columns = c("Date_Received", "Date_Accepted"), method = "toLocaleDateString")
+  })
+  
+  # Status message showing stats
+  output$status_message <- renderText({
+    df <- results()
+    if (nrow(df) == 0) {
+      return("No results yet. Enter PubMed IDs and click 'Extract Dates'.")
+    }
+    
+    with_dates <- sum(!is.na(df$Date_Received) & !is.na(df$Date_Accepted))
+    pct <- if (nrow(df) > 0) round(100 * with_dates / nrow(df)) else 0
+    
+    paste0(with_dates, " out of ", nrow(df), " articles (", pct, "%) have both submission and acceptance dates.")
+  })
+  
+  # Download handler
+  output$download_data <- downloadHandler(
+    filename = function() {
+      paste("pubmed_dates_extraction_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(results(), file, row.names = FALSE)
+    }
+  )
+  
+  # Histogram of review times
+  output$review_time_hist <- renderPlot({
+    df <- results()
+    
+    if (nrow(df) == 0) {
+      return(ggplot() + 
+               annotate("text", x = 0.5, y = 0.5, label = "No data available", size = 6) +
+               theme_void())
+    }
+    
+    df_complete <- df %>% filter(!is.na(Review_Days) & Review_Days >= 0)
+    
+    if (nrow(df_complete) == 0) {
+      return(ggplot() + 
+               annotate("text", x = 0.5, y = 0.5, label = "No review time data available", size = 6) +
+               theme_void())
+    }
+    
+    median_val <- median(df_complete$Review_Days, na.rm = TRUE)
+    
+    ggplot(df_complete, aes(x = Review_Days)) +
+      geom_histogram(binwidth = 30, fill = "steelblue", color = "white", alpha = 0.7) +
+      labs(title = "Distribution of Review Times",
+           x = "Review Time (Days)",
+           y = "Number of Articles") +
+      theme_minimal() +
+      geom_vline(xintercept = median_val, linetype = "dashed", color = "red", size = 1) +
+      annotate("text", 
+               x = median_val + max(df_complete$Review_Days) * 0.1, 
+               y = Inf, 
+               label = paste("Median:", median_val, "days"),
+               color = "red", hjust = 0, vjust = 1)
+  })
+  
+  # Time trend of review times
+  output$time_trend <- renderPlot({
+    df <- results()
+    
+    if (nrow(df) == 0) {
+      return(ggplot() + 
+               annotate("text", x = 0.5, y = 0.5, label = "No data available", size = 6) +
+               theme_void())
+    }
+    
+    df_complete <- df %>% 
+      filter(!is.na(Review_Days) & !is.na(Year) & Review_Days >= 0) %>%
+      group_by(Year) %>%
+      summarize(
+        Median_Days = median(Review_Days, na.rm = TRUE),
+        Mean_Days = mean(Review_Days, na.rm = TRUE),
+        Count = n(),
+        .groups = 'drop'
+      )
+    
+    if (nrow(df_complete) <= 1) {
+      return(ggplot() + 
+               annotate("text", x = 0.5, y = 0.5, label = "Not enough data for time trend", size = 6) +
+               theme_void())
+    }
+    
+    ggplot(df_complete, aes(x = Year)) +
+      geom_line(aes(y = Median_Days, color = "Median"), size = 1) +
+      geom_point(aes(y = Median_Days, color = "Median"), size = 3) +
+      geom_line(aes(y = Mean_Days, color = "Mean"), size = 1, linetype = "dashed") +
+      geom_point(aes(y = Mean_Days, color = "Mean"), size = 3) +
+      geom_text(aes(y = Median_Days, label = Count), vjust = -1, size = 3) +
+      scale_color_manual(name = "Measure", values = c("Median" = "blue", "Mean" = "red")) +
+      theme_minimal() +
+      labs(title = "Review Time Trend by Publication Year",
+           subtitle = "Numbers indicate count of articles per year",
+           x = "Publication Year",
+           y = "Days from Submission to Acceptance") +
+      scale_x_continuous(breaks = scales::pretty_breaks())
+  })
+  # Summary statistics
+  output$stats_summary <- renderPrint({
+    df <- results()
+    
+    if (nrow(df) == 0) {
+      cat("No data available\n")
+      return()
+    }
+    
+    cat("Summary of Review Times (in days):\n\n")
+    
+    df_complete <- df %>% filter(!is.na(Review_Days) & Review_Days >= 0)
+    
+    if (nrow(df_complete) == 0) {
+      cat("No complete review time data available\n")
+      return()
+    }
+    
+    # Overall statistics
+    cat("Overall Statistics:\n")
+    cat("Number of articles with complete date information:", nrow(df_complete), "\n")
+    cat("Mean review time:", round(mean(df_complete$Review_Days, na.rm = TRUE), 1), "days\n")
+    cat("Median review time:", median(df_complete$Review_Days, na.rm = TRUE), "days\n")
+    cat("Minimum review time:", min(df_complete$Review_Days, na.rm = TRUE), "days\n")
+    cat("Maximum review time:", max(df_complete$Review_Days, na.rm = TRUE), "days\n\n")
+    
+    # By journal (if we have enough data)
+    journals_with_multiple <- df_complete %>%
+      count(Journal) %>%
+      filter(n > 1 & !is.na(Journal)) %>%
+      pull(Journal)
+    
+    if (length(journals_with_multiple) > 0) {
+      cat("Review Times by Journal (for journals with multiple articles):\n")
+      journal_stats <- df_complete %>%
+        filter(Journal %in% journals_with_multiple) %>%
+        group_by(Journal) %>%
+        summarize(
+          Count = n(),
+          Median = median(Review_Days, na.rm = TRUE),
+          Mean = round(mean(Review_Days, na.rm = TRUE), 1),
+          Min = min(Review_Days, na.rm = TRUE),
+          Max = max(Review_Days, na.rm = TRUE),
+          .groups = 'drop'
+        ) %>%
+        arrange(desc(Count))
+      
+      print(as.data.frame(journal_stats))
+    }
+  })
+}
+
+# Run the app
+shinyApp(ui = ui, server = server)
